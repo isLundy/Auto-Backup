@@ -1,0 +1,5 @@
+{
+    "enabled": true,
+    "timer": 20,
+    "max_num_files": 10
+}
