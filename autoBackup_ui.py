@@ -1,15 +1,19 @@
 try:
     from PySide6.QtWidgets import (QWidget, QApplication, QLabel, QGridLayout, QSpinBox,
         QSizePolicy, QVBoxLayout, QHBoxLayout, QDialogButtonBox, QPushButton, QComboBox,
-        QLineEdit, QStyle)
+        QLineEdit, QStyle, QFrame, QToolTip, QFileDialog)
     from PySide6.QtGui import QCursor, QIcon
     from PySide6.QtCore import Qt, QSize
 except:
     from PySide2.QtWidgets import (QWidget, QApplication, QLabel, QGridLayout, QSpinBox,
         QSizePolicy, QVBoxLayout, QHBoxLayout, QDialogButtonBox, QPushButton, QComboBox,
-        QLineEdit, QStyle)
+        QLineEdit, QStyle, QFrame, QToolTip, QFileDialog)
     from PySide2.QtGui import QCursor, QIcon
     from PySide2.QtCore import Qt, QSize
+
+from pathlib import Path
+# import nuke
+# import nukescripts
 import sys
 
 class AutoBackup(QWidget):
@@ -33,7 +37,7 @@ class AutoBackup(QWidget):
     def set_ui(self):
 
         # timer
-        self.timer_label = QLabel('Timer: ')
+        self.timer_label = QLabel('Timer:')
 
         self.timer_spinbox = QSpinBox()
         self.timer_spinbox.setFixedWidth(48)
@@ -48,7 +52,7 @@ class AutoBackup(QWidget):
         self.timer_minutes_label = QLabel('minutes')
 
         # maximum files
-        self.maximum_files_label = QLabel('Maximum files: ')
+        self.maximum_files_label = QLabel('Maximum files:')
 
         self.maximum_files_box = QSpinBox()
         self.maximum_files_box.setFixedWidth(48)
@@ -59,43 +63,66 @@ class AutoBackup(QWidget):
                                     '''\nMaximum: 100''')
 
         # backup path
-        self.backup_path_label = QLabel('Backup path: ')
+        self.backup_path_label = QLabel('Backup path:')
+        self.backup_path_label.setFixedHeight(QComboBox().sizeHint().height()*0.9)
 
         self.backup_path_combobox = QComboBox()
         self.backup_path_combobox.addItems(['Project Dir', 'Nuke Temp Dir', 'Custom'])
+        self.backup_path_combobox.setToolTip(
+                                            '''Project Dir:\nCurrent project dir/Auto-Backup'''
+                                            '''\n\nNuke Temp Dir:\n/private/var/tmp/nuke-u501/Auto-Backup'''
+                                            )
         self.backup_path_combobox.currentIndexChanged.connect(self.backup_path_combobox_Changed)
 
         self.backup_path_open_button = QPushButton()
         self.backup_path_open_button.setIcon(self.icon_folder)
         self.backup_path_open_button.setFixedWidth(QPushButton().sizeHint().height())
+        self.backup_path_open_button.setToolTip('Open')
+        self.backup_path_open_button.clicked.connect(self.open_backup_dir)
 
         self.backup_path_dir_label = QLabel()
+        self.backup_path_dir_label.setFixedWidth(self.backup_path_combobox.sizeHint().width())
+        self.backup_path_dir_label.setStyleSheet("padding-right: 2px; padding-left: 4px")
+        self.backup_path_dir_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.backup_path_dir_label.setDisabled(True)
-        self.backup_path_dir_label.setText('0')
+
+        self.backup_path_dir_lineedit = QLineEdit()
+        self.backup_path_dir_lineedit.setFixedWidth(self.backup_path_combobox.sizeHint().width())
+        self.backup_path_dir_lineedit.setAlignment(Qt.AlignRight)
+        self.backup_path_dir_lineedit.setReadOnly(True)
+        self.backup_path_dir_lineedit.setVisible(False)
 
         self.backup_path_choose_button = QPushButton()
         self.backup_path_choose_button.setIcon(self.icon_folder_gear)
         self.backup_path_choose_button.setFixedWidth(QPushButton().sizeHint().height())
+        self.backup_path_choose_button.setToolTip('Choose')
+        self.backup_path_choose_button.clicked.connect(self.choose_backup_dir)
         self.backup_path_choose_button.setVisible(False)
 
         # grid layout
         grid_layout = QGridLayout()
-        grid_layout.addWidget(self.timer_label, 0, 0, Qt.AlignRight | Qt.AlignVCenter)
         self.timer_hBox = QHBoxLayout()
         self.timer_hBox.addWidget(self.timer_spinbox)
         self.timer_hBox.addWidget(self.timer_minutes_label)
         self.timer_hBox.setSpacing(2)
+        grid_layout.addWidget(self.timer_label, 0, 0, Qt.AlignRight | Qt.AlignVCenter)
         grid_layout.addLayout(self.timer_hBox, 0, 1, Qt.AlignLeft | Qt.AlignVCenter)
 
         grid_layout.addWidget(self.maximum_files_label, 1, 0, Qt.AlignRight | Qt.AlignVCenter)
         grid_layout.addWidget(self.maximum_files_box, 1, 1, Qt.AlignLeft | Qt.AlignVCenter)
 
-        grid_layout.addWidget(self.backup_path_label, 2, 0, Qt.AlignRight | Qt.AlignVCenter)
-        grid_layout.addWidget(self.backup_path_combobox, 2, 1)
-        grid_layout.addWidget(self.backup_path_open_button, 2, 2, Qt.AlignLeft | Qt.AlignVCenter)
-
-        grid_layout.addWidget(self.backup_path_dir_label, 3, 1, Qt.AlignCenter)
-        grid_layout.addWidget(self.backup_path_choose_button, 3, 2, Qt.AlignLeft | Qt.AlignVCenter)
+        self.backup_path_vBox_1 = QVBoxLayout()
+        self.backup_path_vBox_1.addWidget(self.backup_path_combobox)
+        self.backup_path_vBox_1.addWidget(self.backup_path_dir_label)
+        self.backup_path_vBox_1.addWidget(self.backup_path_dir_lineedit)
+        self.backup_path_vBox_1.setSpacing(4)
+        self.backup_path_vBox_2 = QVBoxLayout()
+        self.backup_path_vBox_2.addWidget(self.backup_path_open_button)
+        self.backup_path_vBox_2.addWidget(self.backup_path_choose_button)
+        self.backup_path_vBox_2.setSpacing(4)
+        grid_layout.addWidget(self.backup_path_label, 2, 0, Qt.AlignRight | Qt.AlignTop)
+        grid_layout.addLayout(self.backup_path_vBox_1, 2, 1, Qt.AlignLeft | Qt.AlignTop)
+        grid_layout.addLayout(self.backup_path_vBox_2, 2, 2, Qt.AlignLeft | Qt.AlignTop)
 
         grid_layout.setHorizontalSpacing(2)
         grid_layout.setVerticalSpacing(20)
@@ -114,6 +141,7 @@ class AutoBackup(QWidget):
         self.cancel_button = QPushButton('Cancel')
         self.cancel_button.setIcon(self.icon_close)
         self.cancel_button.setIconSize(self.icon_size)
+        self.cancel_button.clicked.connect(self.close)
 
         self.save_button = QPushButton('Save')
         self.save_button.setIcon(self.icon_save)
@@ -132,7 +160,6 @@ class AutoBackup(QWidget):
         main_layout.addSpacing(40)
         main_layout.addStretch()
         main_layout.addLayout(hBox_layout_2)
-        # main_layout.setSizeConstraint(QVBoxLayout.SetMinimumSize)
 
         # set layout
         self.setLayout(main_layout)
@@ -156,12 +183,47 @@ class AutoBackup(QWidget):
 
         self.setWindowTitle('Auto Backup')
 
+    def backup_path_dir_text(self):
+        project_dir = Path(nuke.root().name()).absolute().parent.joinpath('Auto-Backup').as_posix()
+        nuke_temp_dir = Path(nuke.tcl('getenv NUKE_TEMP_DIR')).absolute().joinpath('Auto-Backup').as_posix()
+        custom_dir = self.backup_path_dir_lineedit.text()
+
+        return [project_dir, nuke_temp_dir, custom_dir]
+
+
     def backup_path_combobox_Changed(self, index):
-        self.backup_path_dir_label.setText(str(index))
-        if index == 2:
-            self.backup_path_choose_button.setVisible(True)
-        else:
+        if index == 0:
+            self.backup_path_dir_label.setText(self.backup_path_dir_text()[0])
+        elif index == 1:
+            self.backup_path_dir_label.setText(self.backup_path_dir_text()[1])
+
+        if index != 2:
+            self.backup_path_dir_label.setVisible(True)
+            self.backup_path_dir_lineedit.setVisible(False)
             self.backup_path_choose_button.setVisible(False)
+        else:
+            self.backup_path_dir_label.setVisible(False)
+            self.backup_path_dir_lineedit.setVisible(True)
+            self.backup_path_choose_button.setVisible(True)
+
+
+    def open_backup_dir(self):
+        backup_dir = self.backup_path_dir_text()[self.backup_path_combobox.currentIndex()]
+
+        if not Path(backup_dir).is_dir():
+            Path(backup_dir).mkdir(parents=True, exist_ok=True)
+
+        nukescripts.start(backup_dir)
+
+
+
+    def choose_backup_dir(self):
+        custom_dir = nuke.getFilename('Choose a backup directory')
+
+        if Path(custom_dir).is_dir():
+            self.backup_path_dir_lineedit.setText(custom_dir)
+        elif Path(custom_dir).is_file():
+            nuke.message('Please choose a <span style="color: rgb(255, 69, 58)">directory</span>, not file.')
 
 
 
@@ -170,7 +232,8 @@ class AutoBackup(QWidget):
             self.close()       
         
 
-app = QApplication(sys.argv)
+
+# app = QApplication(sys.argv)
 test = AutoBackup()
 test.show()
-sys.exit(app.exec())
+# sys.exit(app.exec())

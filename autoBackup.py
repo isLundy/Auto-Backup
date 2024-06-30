@@ -33,7 +33,8 @@ def copy_to_backup():
 
         # create Auto-Backup dir
         backup_dir = nk.parent.joinpath('Auto-Backup')
-        Path(backup_dir).mkdir(parents=True, exist_ok=True)
+        if not backup_dir.is_dir():
+            Path(backup_dir).mkdir(parents=True, exist_ok=True)
 
         # new file
         new = Path(backup_dir).joinpath(f'{src_stem}_{src_mtime}.nk')
