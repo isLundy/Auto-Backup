@@ -1,5 +1,7 @@
 {
     "enabled": true,
     "timer": 20,
-    "max_num_files": 10
+    "max_num_files": 10,
+    "backup_dir_index": 0,
+    "custom_dir": "/Users/lundy/Desktop/Temp"
 }
