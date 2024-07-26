@@ -180,7 +180,7 @@ class ToggleSwitchButton(QCheckBox):
 
         # bg color
         self.off_color = QColor(142, 142, 142)
-        self.on_color = QColor(52, 199, 89)
+        self.on_color = QColor(255, 149, 0)
 
         # circle
         self.circle_color = QColor(242, 242, 242)
@@ -363,7 +363,6 @@ class AutoBackup_UI(QWidget):
         # divider
         self.h_line = QFrame()
         self.h_line.setFrameShape(QFrame.HLine)
-        self.h_line.setStyleSheet("color: rgba(255, 255, 255, 50)")
 
         # setttings button
         self.settings_button = QPushButton(' Settings')
@@ -378,19 +377,19 @@ class AutoBackup_UI(QWidget):
         self.advance_button.clicked.connect(self.hide_or_show_widgets)
 
         # option layout
-        option_hBox_layout = QHBoxLayout()
-        # option_hBox_layout.addStretch()
-        option_hBox_layout.addWidget(self.settings_button)
-        option_hBox_layout.addWidget(self.advance_button)
-        # option_hBox_layout.addStretch()
+        option_hBox = QHBoxLayout()
+        option_hBox.addStretch()
+        option_hBox.addWidget(self.settings_button)
+        option_hBox.addWidget(self.advance_button)
+        option_hBox.addStretch()
 
         # general layout
-        general_vBox_layout = QVBoxLayout()
-        general_vBox_layout.addWidget(self.timer_display_label, alignment=Qt.AlignHCenter)
-        general_vBox_layout.addWidget(self.toggle_switch, alignment=Qt.AlignHCenter)
-        general_vBox_layout.addWidget(self.h_line)
-        general_vBox_layout.addLayout(option_hBox_layout)
-        general_vBox_layout.setSpacing(20)
+        general_vBox = QVBoxLayout()
+        general_vBox.addWidget(self.timer_display_label, alignment=Qt.AlignHCenter)
+        general_vBox.addWidget(self.toggle_switch, alignment=Qt.AlignHCenter)
+        general_vBox.addWidget(self.h_line)
+        general_vBox.addLayout(option_hBox)
+        general_vBox.setSpacing(20)
 
         # timer
         self.timer_label = QLabel('Timer:')
@@ -440,9 +439,15 @@ class AutoBackup_UI(QWidget):
         self.backup_dir_open_button.clicked.connect(self.open_backup_dir)
 
         self.backup_dir_display_lineedit = QLineEdit()
+        self.backup_dir_display_lineedit.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.backup_dir_display_lineedit.setAlignment(Qt.AlignRight)
         self.backup_dir_display_lineedit.setReadOnly(True)
         self.backup_dir_display_lineedit.setVisible(False)
+        self.backup_dir_display_lineedit.setStyleSheet("""
+                                                        .QLineEdit[readOnly="true"] {
+                                                            color: rgb(142, 142, 142)
+                                                        }
+                                                        """)
 
         # choose backup dir
         self.backup_dir_choose_button = QPushButton()
@@ -497,28 +502,29 @@ class AutoBackup_UI(QWidget):
         grid_layout.setVerticalSpacing(20)
 
         # set horizontal layout
-        settings_hBox_layout_1 = QHBoxLayout()
-        settings_hBox_layout_1.addStretch()
-        settings_hBox_layout_1.addLayout(grid_layout)
-        settings_hBox_layout_1.addStretch()
+        settings_hBox_1 = QHBoxLayout()
+        settings_hBox_1.addStretch()
+        settings_hBox_1.addLayout(grid_layout)
+        settings_hBox_1.addStretch()
 
         # set horizontal layout 2
-        settings_hBox_layout_2 = QHBoxLayout()
-        settings_hBox_layout_2.addWidget(self.restore_button)
-        settings_hBox_layout_2.addStretch()
-        settings_hBox_layout_2.addWidget(self.cancel_button)
-        settings_hBox_layout_2.addWidget(self.save_button)
+        settings_hBox_2 = QHBoxLayout()
+        settings_hBox_2.addWidget(self.restore_button)
+        settings_hBox_2.addStretch()
+        settings_hBox_2.addWidget(self.cancel_button)
+        settings_hBox_2.addWidget(self.save_button)
 
         # setttings layout
-        setttings_vBox_layout = QVBoxLayout()
-        setttings_vBox_layout.addSpacing(5)
-        setttings_vBox_layout.addLayout(settings_hBox_layout_1)
-        setttings_vBox_layout.addSpacing(20)
-        setttings_vBox_layout.addLayout(settings_hBox_layout_2)
-        setttings_vBox_layout.addSpacing(5)
+        setttings_vBox = QVBoxLayout()
+        setttings_vBox.addSpacing(5)
+        setttings_vBox.addLayout(settings_hBox_1)
+        setttings_vBox.addSpacing(40)
+        setttings_vBox.addStretch()
+        setttings_vBox.addLayout(settings_hBox_2)
+        setttings_vBox.addSpacing(5)
 
         self.settings_widgets = QWidget()
-        self.settings_widgets.setLayout(setttings_vBox_layout)
+        self.settings_widgets.setLayout(setttings_vBox)
 
         # immediately button
         self.immediately_button = QPushButton(' Immediately backup once')
@@ -531,42 +537,41 @@ class AutoBackup_UI(QWidget):
         self.delete_button.setFixedWidth(200)
 
         # advance layout
-        advance_vBox_layout = QVBoxLayout()
-        advance_vBox_layout.addSpacing(5)
-        advance_vBox_layout.addWidget(self.immediately_button, alignment=Qt.AlignHCenter)
-        advance_vBox_layout.addWidget(self.delete_button, alignment=Qt.AlignHCenter)
-        advance_vBox_layout.addSpacing(5)
-        advance_vBox_layout.setSpacing(20)
+        advance_vBox = QVBoxLayout()
+        advance_vBox.addSpacing(5)
+        advance_vBox.addWidget(self.immediately_button, alignment=Qt.AlignHCenter)
+        advance_vBox.addWidget(self.delete_button, alignment=Qt.AlignHCenter)
+        advance_vBox.addSpacing(5)
+        advance_vBox.setSpacing(20)
 
         self.advance_widgets = QWidget()
-        self.advance_widgets.setLayout(advance_vBox_layout)
+        self.advance_widgets.setLayout(advance_vBox)
 
         # stacked
         self.stacked_widget = QStackedWidget()
         self.stacked_widget.addWidget(self.settings_widgets)
         self.stacked_widget.addWidget(self.advance_widgets)
 
-        # setting shadow
+        # stacked shadow
+        # stacked style sheet
         shadow = QGraphicsDropShadowEffect(self)
         shadow.setBlurRadius(60)
         shadow.setOffset(0, 0)
         shadow.setColor(QColor(0, 0, 0, 32))
         self.stacked_widget.setGraphicsEffect(shadow)
-        # settings style sheet
         self.stacked_widget.setStyleSheet("""
-                                            .QStackedWidget {
-                                                border-width: 2px;
-                                                border-style: solid;
-                                                border-radius: 12px;
-                                                border-color: rgb(56, 56, 56);
-                                                background-color: rgb(56, 56, 56);
-                                            }
-                                            """)
+                                        .QStackedWidget {
+                                            border-width: 2px;
+                                            border-style: solid;
+                                            border-radius: 12px;
+                                            border-color: rgb(56, 56, 56);
+                                            background-color: rgb(56, 56, 56);
+                                        }
+                                        """)
 
         # divider 2
         self.h_line_2 = QFrame()
         self.h_line_2.setFrameShape(QFrame.HLine)
-        self.h_line_2.setStyleSheet("color: rgba(255, 255, 255, 50)")
 
         # exit button
         self.exit_button = QPushButton(' Exit')
@@ -574,25 +579,41 @@ class AutoBackup_UI(QWidget):
         self.exit_button.clicked.connect(self.close)
 
         # exit layout
-        exit_vBox_layout = QVBoxLayout()
-        exit_vBox_layout.addWidget(self.h_line_2)
-        exit_vBox_layout.addWidget(self.exit_button, alignment=Qt.AlignRight | Qt.AlignVCenter)
-        exit_vBox_layout.setSpacing(20)
+        exit_vBox = QVBoxLayout()
+        exit_vBox.addWidget(self.h_line_2)
+        exit_vBox.addWidget(self.exit_button, alignment=Qt.AlignRight)
+        exit_vBox.setSpacing(20)
 
         # main layout (vertical layout)
         self.main_layout = QVBoxLayout()
         self.main_layout.addSpacing(10)
-        self.main_layout.addLayout(general_vBox_layout)
+        self.main_layout.addLayout(general_vBox)
         self.main_layout.addWidget(self.stacked_widget)
-        self.main_layout.addLayout(exit_vBox_layout)
         self.main_layout.addStretch()
+        self.main_layout.addLayout(exit_vBox)
+        self.main_layout.addSpacing(5)
         self.main_layout.setSpacing(20)
+        self.main_layout.setStretchFactor(self.stacked_widget, 1)
 
-        # set layout
+        # set layout and style sheets
         self.setLayout(self.main_layout)
+        self.setStyleSheet("""
+                            .QFrame {
+                                color: rgba(255, 255, 255, 50)
+                            }
+
+                            .QPushButton:checked {
+                                border-width: 1px;
+                                border-style: solid;
+                                border-radius: 6px;
+                                border-color: rgb(255, 149, 0);
+                                background-color: rgba(255, 149, 0, 32);
+                                color: rgba(255, 255, 255, 230)
+                            }
+                            """)
 
         # minimum width
-        self.minimum_width = self.main_layout.totalSizeHint().width()*1.3
+        self.minimum_width = self.main_layout.totalSizeHint().width() * 1.3
 
         # hide widgets
         self.stacked_widget.setVisible(False)
@@ -877,7 +898,7 @@ class AutoBackup_UI(QWidget):
 
 
     def resizeEvent(self, event):
-        print(self.size())
+        pass
 
 
 
