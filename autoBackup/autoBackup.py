@@ -34,10 +34,9 @@ class AutoBackup:
         # settings json file
         # self.settings_json = Path(__file__).absolute().parent.joinpath('settings.json').as_posix()
         self.settings_json = '/Users/lundy/HuStudio/Work/Github/autoBackup/settings.json'
-        self.enabled = self.user_settings()['enabled']
         self.scheduler = sched.scheduler(time.time, time.sleep)
         self.threading_actived = False
-        
+        self.last_block_time = None
 
 
     # create threading
@@ -45,30 +44,25 @@ class AutoBackup:
         # create threading
         if self.user_settings()['enabled']:
             self.add_sched()
-            self.sched_threading = threading.Thread(target=self.start_sched)
+            self.sched_threading = threading.Thread(target=self.scheduler.run)
             self.sched_threading.daemon = True
             self.sched_threading.start()
             self.threading_actived = True
 
 
+    def interval_time(self):
+        interval = self.user_settings()['timer']
 
-    # run sched
-    def start_sched(self):
-        while self.enabled:
-            self.scheduler.run(blocking=False)
-            time.sleep(1)
-
+        return interval
 
 
     # add scheduler
     def add_sched(self, interval=None):
         if not interval:
-            interval = self.user_settings()['timer']
+            interval = self.interval_time()
 
         self.scheduler.enter(interval, 1, self.copy_and_sched)
-        self.next_time = self.scheduler.queue[-1].time
-        # print('num:', len(self.scheduler.queue), datetime.fromtimestamp(self.next_time))
-
+        self.next_time = self.scheduler.queue[0].time
 
 
     # default value
@@ -85,14 +79,12 @@ class AutoBackup:
         return settings
 
 
-
     # user settings
     def user_settings(self):
         with open(self.settings_json) as st:
             settings = json.load(st)
 
         return settings
-
 
 
     # backup directories
@@ -107,16 +99,15 @@ class AutoBackup:
         return [cur_project_dir, nuke_temp_dir, custom_dir]
 
 
-
     # copy and sched
     def copy_and_sched(self):
         self.copy_to_backup_dir()
         self.add_sched()
 
 
-
     # copy
     def copy_to_backup_dir(self):
+        print('----copy_to_backup_dir----')
         # .nk file
         nk = Path(nuke.root().name()).absolute()
 
@@ -168,7 +159,6 @@ class AutoBackup:
 
 
 
-
 class ToggleSwitchButton(QCheckBox):
     def __init__(self, start_state=False):
         super().__init__()
@@ -216,11 +206,9 @@ class ToggleSwitchButton(QCheckBox):
             self._bg_color = self.on_color
 
 
-
     @Property(float)
     def pos_factor(self):
         return self._pos_factor
-
 
 
     @pos_factor.setter
@@ -229,11 +217,9 @@ class ToggleSwitchButton(QCheckBox):
         self.update()
 
 
-
     @Property(QColor)
     def bg_color(self):
         return self._bg_color
-
 
 
     @bg_color.setter
@@ -242,11 +228,9 @@ class ToggleSwitchButton(QCheckBox):
         self.update()
 
 
-
     # mouse area
     def hitButton(self, pos):
         return self.contentsRect().contains(pos)
-
 
 
     # start animation
@@ -263,7 +247,6 @@ class ToggleSwitchButton(QCheckBox):
 
         # start animation
         self.anim_group.start()
-
 
 
     # paint
@@ -298,9 +281,7 @@ class ToggleSwitchButton(QCheckBox):
         p.end()
 
 
-
 class AutoBackup_UI(QWidget):
-
     def __init__(self):
         super().__init__()
         self.task = autoBackup
@@ -308,7 +289,6 @@ class AutoBackup_UI(QWidget):
         # init ui
         self.set_ui()
         self.set_window()
-
 
 
     # show ui
@@ -319,14 +299,12 @@ class AutoBackup_UI(QWidget):
         self.set_focus()
 
 
-
     # start QTimer
     def create_timer_obj(self):
         # timer obj
         self.timer_obj = QTimer()
         self.timer_obj.timeout.connect(self.update_timer_display)
         self.timer_obj.setInterval(1000)
-
 
 
     # set ui
@@ -560,14 +538,14 @@ class AutoBackup_UI(QWidget):
         shadow.setColor(QColor(0, 0, 0, 32))
         self.stacked_widget.setGraphicsEffect(shadow)
         self.stacked_widget.setStyleSheet("""
-                                        .QStackedWidget {
-                                            border-width: 2px;
-                                            border-style: solid;
-                                            border-radius: 12px;
-                                            border-color: rgb(56, 56, 56);
-                                            background-color: rgb(56, 56, 56);
-                                        }
-                                        """)
+                                            .QStackedWidget {
+                                                border-width: 1px;
+                                                border-style: solid;
+                                                border-radius: 12px;
+                                                border-color: rgb(56, 56, 56);
+                                                background-color: rgb(56, 56, 56);
+                                            }
+                                            """)
 
         # divider 2
         self.h_line_2 = QFrame()
@@ -608,7 +586,7 @@ class AutoBackup_UI(QWidget):
                                 border-radius: 6px;
                                 border-color: rgb(255, 149, 0);
                                 background-color: rgba(255, 149, 0, 32);
-                                color: rgba(255, 255, 255, 230)
+                                color: rgba(255, 255, 255, 230);
                             }
                             """)
 
@@ -622,79 +600,96 @@ class AutoBackup_UI(QWidget):
         # self.minimum_height = self.main_layout.totalSizeHint().height()
 
 
-
     # create QTime()
     def create_time_obj(self):
         remaining = math.ceil(self.task.next_time - time.time())
-        hours, remainder = divmod(remaining, 3600)
-        minutes, seconds = divmod(remainder, 60)
-        self.remaining_time = QTime(int(hours), int(minutes), int(seconds))
-        self.timer_display_label.setText(self.remaining_time.toString("h:mm:ss"))
-
+        if remaining > 0:
+            hours, remainder = divmod(remaining, 3600)
+            minutes, seconds = divmod(remainder, 60)
+            self.remaining_time = QTime(int(hours), int(minutes), int(seconds))
 
 
     # update timer display
     @Slot()
     def update_timer_display(self):
-        self.remaining_time = self.remaining_time.addSecs(-1)
-        self.timer_display_label.setText(self.remaining_time.toString("h:mm:ss"))
-        if self.remaining_time == QTime(0, 0, 0, 0):
-            QTimer.singleShot(200, self.create_time_obj)
-            # print('---000')
+        if self.remaining_time != QTime(0, 0, 0, 0):
+            self.remaining_time = self.remaining_time.addSecs(-1)
+            self.timer_display_label.setText(self.remaining_time.toString("h:mm:ss"))
+            # print(self.remaining_time.toString("h:mm:ss"))
+        else:
+            self.create_time_obj()
+            self.timer_display_label.setText(self.remaining_time.toString("h:mm:ss"))
+            # print(self.remaining_time)
 
-        # print(self.remaining_time)
-        # print('-'*100)
-        # print('checked:', self.toggle_switch.isChecked())
-        # for thread in threading.enumerate():
-        #     print(thread)
-        # print(threading.active_count(), self.task.sched_threading.is_alive())
+
+        print('-'*100)
+        print('checked:', self.toggle_switch.isChecked())
+        for thread in threading.enumerate():
+            print(thread)
+        print(threading.active_count(), self.task.sched_threading.is_alive())
         # print(self.task.sched_threading)
 
 
+    # record block time and cancel old event
+    def recorde_and_cancel(self):
+        queue = self.task.scheduler.queue
+        if queue:
+            self.task.last_block_time = self.task.scheduler.queue[0].time
+
+        for event in self.task.scheduler.queue:
+                self.task.scheduler.cancel(event)
+
+
+    # check state of threading ans last block time of sched
+    def check_threading_and_sched(self):
+        if (self.task.threading_actived
+            and self.task.sched_threading.is_alive()
+            and self.task.last_block_time
+            and 0 < self.task.last_block_time - time.time() < self.task.interval_time()):
+
+            self.task.add_sched()
+            print(1)
+        else:
+            self.task.start_threading()
+            print(2)
+
+
+    # timer and timer display and timer start
+    def time_display_and_start(self):
+        self.create_time_obj()
+        self.timer_display_label.setText(self.remaining_time.toString("h:mm:ss"))
+        self.timer_obj.start()
 
 
     # enable or disable
     @Slot()
     def toggle_switch_changed(self, state):
-        # stop or start loop of scheduler.run()
-        self.task.enabled = state
-
         self.timer_display_label.setEnabled(state)
 
         # write to settings json
         if state:
             timer_display = ''
         else:
+            self.timer_obj.stop()
             timer_display = self.timer_display_label.text()
 
         settings = self.task.user_settings()
         settings['display'] = timer_display
         settings['enabled'] = state
-
         with open(self.task.settings_json, 'w+') as st:
             json.dump(settings, st, indent=4)
 
         # check sched and threading
         if state:
-            self.timer_obj.start()
-
-            if self.task.threading_actived and self.task.sched_threading.is_alive():
-                self.task.add_sched()
-            else:
-                self.task.start_threading()
-
-            self.create_time_obj()
+            self.check_threading_and_sched()
+            self.time_display_and_start()
         else:
-            # self.timer_obj.stop()
-            for event in self.task.scheduler.queue:
-                self.task.scheduler.cancel(event)
-
-
+            # record block time and cancel old event
+            self.recorde_and_cancel()
 
     # hide or show, resize windows
     @Slot()
     def hide_or_show_widgets(self, state):
-        print(state)
         self.stacked_widget.setVisible(state)
 
         if self.sender() == self.settings_button:
@@ -714,7 +709,6 @@ class AutoBackup_UI(QWidget):
         QTimer.singleShot(0, self.resize_window)
 
 
-
     # backup_dir_combobox slot
     @Slot()
     def backup_dir_combobox_changed(self, index):
@@ -727,7 +721,6 @@ class AutoBackup_UI(QWidget):
 
         QTimer.singleShot(0, self.resize_window)
 
- 
 
     # open backup dir
     @Slot()
@@ -746,7 +739,6 @@ class AutoBackup_UI(QWidget):
             nukescripts.start(backup_dir)
 
 
-
     # choose a backup directory
     @Slot()
     def choose_backup_dir(self):
@@ -759,7 +751,6 @@ class AutoBackup_UI(QWidget):
                 nuke.message('Please choose a <span style="color: rgb(255, 69, 58)">directory</span>.')
 
 
-
     # restore default settings
     @Slot()
     def restore_default_values(self):
@@ -769,7 +760,6 @@ class AutoBackup_UI(QWidget):
         self.maximum_files_spinbox.setValue(default['maximum_files'])
         self.backup_dir_combobox.setCurrentIndex(0)
         self.backup_dir_display_lineedit.setText('')
-
 
 
     # cancel and restore to user settings
@@ -784,18 +774,18 @@ class AutoBackup_UI(QWidget):
         self.set_settings_values()
 
 
-
     # save user settings
     @Slot()
     def save_user_values(self):
-        if self.toggle_switch.isChecked():
+        state = self.toggle_switch.isChecked()
+        if state:
             timer_display = ''
         else:
             timer_display = self.timer_display_label.text()
 
         settings = {
                     'display': timer_display,
-                    'enabled': self.toggle_switch.isChecked(),
+                    'enabled': state,
                     'timer': self.timer_spinbox.value(),
                     'maximum_files': self.maximum_files_spinbox.value(),
                     'backup_dir_index': self.backup_dir_combobox.currentIndex(),
@@ -806,20 +796,18 @@ class AutoBackup_UI(QWidget):
         with open(self.task.settings_json, 'w+') as st:
             json.dump(settings, st, indent=4)
 
-        # cancel old event
-        for event in self.task.scheduler.queue:
-            self.task.scheduler.cancel(event)
+        # record block time and cancel old event
+        self.recorde_and_cancel()
 
         # create new event
-        if self.toggle_switch.isChecked():
-            self.task.add_sched()
-            self.create_time_obj()
+        if state:
+            self.check_threading_and_sched()
+            self.time_display_and_start()
 
         # hide settings
         self.settings_button.setChecked(False)
         self.stacked_widget.setVisible(False)
         QTimer.singleShot(0, self.resize_window)
-
 
 
     # set window
@@ -836,11 +824,9 @@ class AutoBackup_UI(QWidget):
         self.setWindowTitle('Auto Backup')
 
 
-
     # update window size
     def resize_window(self):
         self.resize(self.width(), self.main_layout.totalMinimumSize().height())
-
 
 
     # only settings values, exclude toogle switch
@@ -848,12 +834,10 @@ class AutoBackup_UI(QWidget):
         user = self.task.user_settings()
 
         # user setttings
-        index = user['backup_dir_index']
         self.timer_spinbox.setValue(user['timer'])
         self.maximum_files_spinbox.setValue(user['maximum_files'])
-        self.backup_dir_combobox.setCurrentIndex(index)
+        self.backup_dir_combobox.setCurrentIndex(user['backup_dir_index'])
         self.backup_dir_display_lineedit.setText(user['custom_dir'])
-
 
 
     # set user settings
@@ -862,14 +846,12 @@ class AutoBackup_UI(QWidget):
 
         if user['enabled']:
             self.toggle_switch.setChecked(True)
-            self.timer_obj.start()
-            self.create_time_obj()
+            self.time_display_and_start()
         else:
             self.timer_display_label.setText(user['display'])
             self.timer_display_label.setEnabled(False)
 
         self.set_settings_values()
-
 
 
     # set focus
@@ -880,12 +862,10 @@ class AutoBackup_UI(QWidget):
         self.setFocus()
 
 
-
     # stop timer display
     def closeEvent(self, event):
         self.timer_obj.stop()
         super().closeEvent(event)
-
 
 
     # keyboard press
@@ -896,10 +876,8 @@ class AutoBackup_UI(QWidget):
         super().keyPressEvent(event)
 
 
-
     def resizeEvent(self, event):
         pass
-
 
 
 # ui instance
