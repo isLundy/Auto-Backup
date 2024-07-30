@@ -2,16 +2,16 @@ try:
     from PySide6.QtWidgets import (QWidget, QApplication, QLabel, QGridLayout, QSpinBox,
         QSizePolicy, QVBoxLayout, QHBoxLayout, QDialogButtonBox, QPushButton, QComboBox,
         QLineEdit, QStyle, QFrame, QToolTip, QFileDialog, QCheckBox, QGraphicsDropShadowEffect,
-        QStackedWidget)
-    from PySide6.QtGui import QIcon, QPainter, QColor, QBrush
+        QStackedWidget, QMessageBox, QGraphicsBlurEffect)
+    from PySide6.QtGui import QIcon, QPainter, QColor, QBrush, QLinearGradient
     from PySide6.QtCore import (Qt, QSize, QTimer, QTime, Slot, Property, QEasingCurve, QPropertyAnimation,
         QPointF, QRectF, QParallelAnimationGroup)
 except:
     from PySide2.QtWidgets import (QWidget, QApplication, QLabel, QGridLayout, QSpinBox,
         QSizePolicy, QVBoxLayout, QHBoxLayout, QDialogButtonBox, QPushButton, QComboBox,
         QLineEdit, QStyle, QFrame, QToolTip, QFileDialog, QCheckBox, QGraphicsDropShadowEffect,
-        QStackedWidget)
-    from PySide2.QtGui import QIcon, QPainter, QColor, QBrush
+        QStackedWidget, QMessageBox, QGraphicsBlurEffect)
+    from PySide2.QtGui import QIcon, QPainter, QColor, QBrush, QLinearGradient
     from PySide2.QtCore import (Qt, QSize, QTimer, QTime, Slot, Property, QEasingCurve, QPropertyAnimation,
         QPointF, QRectF, QParallelAnimationGroup)
 
@@ -19,7 +19,7 @@ import nuke
 import nukescripts
 import sys
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta
 import shutil
 import re
 import json
@@ -51,24 +51,31 @@ class AutoBackup:
 
 
     def interval_time(self):
-        interval = self.user_settings()['timer']
+        user = self.user_settings()
 
-        return interval
+        if user['display'] == None:
+            interval = self.user_settings()['timer']
+        else:
+            time_format = "%H:%M:%S"
+            time_obj = datetime.strptime(user['display'], time_format)
+            time_delta = timedelta(hours=time_obj.hour, minutes=time_obj.minute, seconds=time_obj.second)
+            interval = time_delta.total_seconds()
+
+        # interval = self.user_settings()['timer']
+        return int(interval)
 
 
     # add scheduler
-    def add_sched(self, interval=None):
-        if not interval:
-            interval = self.interval_time()
-
+    def add_sched(self):
+        interval = self.interval_time()
         self.scheduler.enter(interval, 1, self.copy_and_sched)
         self.next_time = self.scheduler.queue[0].time
 
 
     # default value
     def default_settings(self):
-        settings = {
-                    'display': '',
+        default = {
+                    'display': None,
                     'enabled': True,
                     'timer': 20,
                     'maximum_files': 20,
@@ -76,15 +83,15 @@ class AutoBackup:
                     'custom_dir': ''
                     }
 
-        return settings
+        return default
 
 
     # user settings
     def user_settings(self):
         with open(self.settings_json) as st:
-            settings = json.load(st)
+            user = json.load(st)
 
-        return settings
+        return user
 
 
     # backup directories
@@ -102,6 +109,13 @@ class AutoBackup:
     # copy and sched
     def copy_and_sched(self):
         self.copy_to_backup_dir()
+
+        user = self.user_settings()
+        if user['display'] != None:
+            user['display'] = None
+            with open(self.settings_json, 'w+') as st:
+                json.dump(user, st, indent=4)
+
         self.add_sched()
 
 
@@ -158,7 +172,6 @@ class AutoBackup:
                         files.pop(0).unlink()
 
 
-
 class ToggleSwitchButton(QCheckBox):
     def __init__(self, start_state=False):
         super().__init__()
@@ -169,11 +182,12 @@ class ToggleSwitchButton(QCheckBox):
         self.resize(self.box_width, self.box_height)
 
         # bg color
-        self.off_color = QColor(142, 142, 142)
-        self.on_color = QColor(255, 149, 0)
+        self.bg_color_off = QColor(99, 99, 99)
+        self.bg_color_on = QColor(52, 199, 89)
 
         # circle
-        self.circle_color = QColor(242, 242, 242)
+        self.circle_color_off = QColor(199, 199, 199)
+        self.circle_color_on = QColor(242, 242, 242)
         self.radius_factor = 0.8
 
         # animation property
@@ -187,15 +201,22 @@ class ToggleSwitchButton(QCheckBox):
         self.anim_1.setDuration(self.anim_duration)
 
         # bg color animation
-        self._bg_color = self.off_color
+        self._bg_color = self.bg_color_off
         self.anim_2 = QPropertyAnimation(self, b"bg_color", self)
         self.anim_2.setEasingCurve(self.anim_curve)
         self.anim_2.setDuration(self.anim_duration)
+
+        # circle color animation
+        self._circle_color = self.circle_color_off
+        self.anim_3 = QPropertyAnimation(self, b"circle_color", self)
+        self.anim_3.setEasingCurve(self.anim_curve)
+        self.anim_3.setDuration(self.anim_duration)
 
         # animation group
         self.anim_group = QParallelAnimationGroup()
         self.anim_group.addAnimation(self.anim_1)
         self.anim_group.addAnimation(self.anim_2)
+        self.anim_group.addAnimation(self.anim_3)
 
         # emit a signal
         self.clicked.connect(self.start_anim)
@@ -203,9 +224,11 @@ class ToggleSwitchButton(QCheckBox):
         # first start
         if start_state:
             self._pos_factor = 1
-            self._bg_color = self.on_color
+            self._bg_color = self.bg_color_on
+            self._circle_color = self.circle_color_on
 
 
+    # pos
     @Property(float)
     def pos_factor(self):
         return self._pos_factor
@@ -217,6 +240,7 @@ class ToggleSwitchButton(QCheckBox):
         self.update()
 
 
+    # bg
     @Property(QColor)
     def bg_color(self):
         return self._bg_color
@@ -225,6 +249,18 @@ class ToggleSwitchButton(QCheckBox):
     @bg_color.setter
     def bg_color(self, color):
         self._bg_color = color
+        self.update()
+
+
+    # circle
+    @Property(QColor)
+    def circle_color(self):
+        return self._circle_color
+
+
+    @circle_color.setter
+    def circle_color(self, color):
+        self._circle_color = color
         self.update()
 
 
@@ -240,10 +276,12 @@ class ToggleSwitchButton(QCheckBox):
 
         if state:
             self.anim_1.setEndValue(1)
-            self.anim_2.setEndValue(self.on_color)
+            self.anim_2.setEndValue(self.bg_color_on)
+            self.anim_3.setEndValue(self.circle_color_on)
         else:
             self.anim_1.setEndValue(0)
-            self.anim_2.setEndValue(self.off_color)
+            self.anim_2.setEndValue(self.bg_color_off)
+            self.anim_3.setEndValue(self.circle_color_off)
 
         # start animation
         self.anim_group.start()
@@ -274,7 +312,7 @@ class ToggleSwitchButton(QCheckBox):
         p.drawRoundedRect(rect, corner, corner)
 
         # paint circle
-        p.setBrush(self.circle_color)
+        p.setBrush(self._circle_color)
         p.drawEllipse(circle_center, radius, radius)
 
         # end paint
@@ -299,33 +337,26 @@ class AutoBackup_UI(QWidget):
         self.set_focus()
 
 
-    # start QTimer
-    def create_timer_obj(self):
-        # timer obj
-        self.timer_obj = QTimer()
-        self.timer_obj.timeout.connect(self.update_timer_display)
-        self.timer_obj.setInterval(1000)
-
-
     # set ui
     def set_ui(self):
         # definition icon
         # icon_path = Path(__file__).absolute().parent.joinpath('icon').as_posix()
         icon_path = '/Users/lundy/HuStudio/Work/Github/autoBackup/icon'
-        self.icon_settings = QIcon(f'{icon_path}/autoBackup_gear.svg')
-        self.icon_advance = QIcon(f'{icon_path}/autoBackup_advance.svg')
+        icon_size = QSize(14, 14)
 
-        self.icon_folder = QIcon(f'{icon_path}/autoBackup_folder.svg')
-        self.icon_folder_gear = QIcon(f'{icon_path}/autoBackup_folder_gear.svg')
-        self.icon_restore = QIcon(f'{icon_path}/autoBackup_restore.svg')
-        self.icon_cancel = QIcon(f'{icon_path}/autoBackup_cancel.svg')
-        self.icon_save = QIcon(f'{icon_path}/autoBackup_save.svg')
+        icon_settings = QIcon(f'{icon_path}/autoBackup_gear.svg')
+        icon_advance = QIcon(f'{icon_path}/autoBackup_advance.svg')
 
-        self.icon_immediately = QIcon(f'{icon_path}/autoBackup_immediately.svg')
-        self.icon_delete = QIcon(f'{icon_path}/autoBackup_delete.svg')
+        icon_folder_open = QIcon(f'{icon_path}/autoBackup_folder_open.svg')
+        icon_folder_choose = QIcon(f'{icon_path}/autoBackup_folder_choose.svg')
+        icon_restore = QIcon(f'{icon_path}/autoBackup_restore.svg')
+        icon_cancel = QIcon(f'{icon_path}/autoBackup_cancel.svg')
+        icon_save = QIcon(f'{icon_path}/autoBackup_save.svg')
 
-        self.icon_exit = QIcon(f'{icon_path}/autoBackup_exit.svg')
-        self.icon_size = QSize(14, 14)
+        icon_immediately = QIcon(f'{icon_path}/autoBackup_immediately.svg')
+        icon_delete = QIcon(f'{icon_path}/autoBackup_delete.svg')
+
+        icon_exit = QIcon(f'{icon_path}/autoBackup_exit.svg')
 
          # timer display
         self.timer_display_label = QLabel()
@@ -344,13 +375,13 @@ class AutoBackup_UI(QWidget):
 
         # setttings button
         self.settings_button = QPushButton(' Settings')
-        self.settings_button.setIcon(self.icon_settings)
+        self.settings_button.setIcon(icon_settings)
         self.settings_button.setCheckable(True)
         self.settings_button.clicked.connect(self.hide_or_show_widgets)
 
         # advance button
         self.advance_button = QPushButton(' Advance')
-        self.advance_button.setIcon(self.icon_advance)
+        self.advance_button.setIcon(icon_advance)
         self.advance_button.setCheckable(True)
         self.advance_button.clicked.connect(self.hide_or_show_widgets)
 
@@ -377,10 +408,10 @@ class AutoBackup_UI(QWidget):
         self.timer_spinbox.setRange(1, 480)
         self.timer_spinbox.setValue(20)
         self.timer_spinbox.setToolTip(
-                                '''Minimum: 1'''
-                                '''\nMaximum: 480'''
-                                '''\n\n(480=60*8 Hope you never work overtime~)'''
-                                )
+                                    'Minimum: 1'
+                                    '\nMaximum: 480'
+                                    '\n\n(480=60*8 Hope you never work overtime~)'
+                                    )
 
         self.timer_minutes_label = QLabel('minutes')
 
@@ -392,26 +423,28 @@ class AutoBackup_UI(QWidget):
         self.maximum_files_spinbox.setRange(1, 100)
         self.maximum_files_spinbox.setValue(20)
         self.maximum_files_spinbox.setToolTip(
-                                    '''Minimum: 1'''
-                                    '''\nMaximum: 100''')
+                                    'Minimum: 1'
+                                    '\nMaximum: 100')
 
         # backup directory
         self.backup_dir_label = QLabel('Backup Directory:')
         self.backup_dir_label.setFixedHeight(QComboBox().sizeHint().height()*0.9)
 
         self.backup_dir_combobox = QComboBox()
-        self.backup_dir_combobox.addItems(['Current Project Dir', 'Nuke Temp Dir', 'Custom'])
+        self.backup_dir_combobox.addItems(['Current Project Dir', 'Nuke Temp Dir', 'Custom Dir'])
         self.backup_dir_combobox.setMinimumWidth(206)
         self.backup_dir_combobox.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.backup_dir_combobox.currentIndexChanged.connect(self.backup_dir_combobox_changed)
         self.backup_dir_combobox.setToolTip(
-                                            '''Current Project Dir:\n[Current project dir]/Auto-Backup'''
-                                            f'''\n\nNuke Temp Dir:\n{nuke.tcl('getenv NUKE_TEMP_DIR')}'''
-                                            )
+            '<b>Current Project Dir</b><p style="margin-top: 0;">[Current project dir]/Auto-Backup</p>'
+            f'<b>Nuke Temp Dir</b><p style="margin-top: 0; margin-bottom: 0">{nuke.tcl("getenv NUKE_TEMP_DIR")}/Auto-Backup</p>'
+            '(Depending on system changes)'
+            '<p style="margin-bottom: 0"><b>Custom Dir</b></p>'
+            )
 
         # open backup dir
         self.backup_dir_open_button = QPushButton()
-        self.backup_dir_open_button.setIcon(self.icon_folder)
+        self.backup_dir_open_button.setIcon(icon_folder_open)
         self.backup_dir_open_button.setFixedWidth(QPushButton().sizeHint().height())
         self.backup_dir_open_button.setToolTip('<b>Open</b>')
         self.backup_dir_open_button.clicked.connect(self.open_backup_dir)
@@ -429,7 +462,7 @@ class AutoBackup_UI(QWidget):
 
         # choose backup dir
         self.backup_dir_choose_button = QPushButton()
-        self.backup_dir_choose_button.setIcon(self.icon_folder_gear)
+        self.backup_dir_choose_button.setIcon(icon_folder_choose)
         self.backup_dir_choose_button.setFixedWidth(QPushButton().sizeHint().height())
         self.backup_dir_choose_button.setToolTip('<b>Choose</b>')
         self.backup_dir_choose_button.clicked.connect(self.choose_backup_dir)
@@ -437,18 +470,18 @@ class AutoBackup_UI(QWidget):
 
         # dialog pushbutton
         self.restore_button = QPushButton(' Restore defaults')
-        self.restore_button.setIcon(self.icon_restore)
-        self.restore_button.setIconSize(self.icon_size)
+        self.restore_button.setIcon(icon_restore)
+        self.restore_button.setIconSize(icon_size)
         self.restore_button.clicked.connect(self.restore_default_values)
 
         self.cancel_button = QPushButton(' Cancel')
-        self.cancel_button.setIcon(self.icon_cancel)
-        self.cancel_button.setIconSize(self.icon_size)
+        self.cancel_button.setIcon(icon_cancel)
+        self.cancel_button.setIconSize(icon_size)
         self.cancel_button.clicked.connect(self.cancel_changed)
 
         self.save_button = QPushButton(' Save')
-        self.save_button.setIcon(self.icon_save)
-        self.save_button.setIconSize(self.icon_size)
+        self.save_button.setIcon(icon_save)
+        self.save_button.setIconSize(icon_size)
         self.save_button.clicked.connect(self.save_user_values)
 
         # grid layout
@@ -505,14 +538,21 @@ class AutoBackup_UI(QWidget):
         self.settings_widgets.setLayout(setttings_vBox)
 
         # immediately button
-        self.immediately_button = QPushButton(' Immediately backup once')
-        self.immediately_button.setIcon(self.icon_immediately)
+        self.immediately_button = QPushButton(' Backup immediately once')
+        self.immediately_button.setIcon(icon_immediately)
         self.immediately_button.setFixedWidth(200)
+        self.immediately_button.clicked.connect(self.task.copy_to_backup_dir)
 
         # clear button
-        self.delete_button = QPushButton(' Delete backup files')
-        self.delete_button.setIcon(self.icon_delete)
+        self.delete_button = QPushButton(' Delete backup files and folder')
+        self.delete_button.setIcon(icon_delete)
         self.delete_button.setFixedWidth(200)
+        self.delete_button.clicked.connect(self.delete_files_and_dir)
+        self.delete_button.setToolTip(
+            '<b>Current Project Dir</b><p style="margin-top: 0;">Delete backup files and folder</p>'
+            '<b>Nuke Temp Dir</b><p style="margin-top: 0;">Delete backup files and folder</p>'
+            '<b>Custom</b><p style="margin-top: 0;">Delete only backup files</p>'
+            )
 
         # advance layout
         advance_vBox = QVBoxLayout()
@@ -530,13 +570,12 @@ class AutoBackup_UI(QWidget):
         self.stacked_widget.addWidget(self.settings_widgets)
         self.stacked_widget.addWidget(self.advance_widgets)
 
-        # stacked shadow
         # stacked style sheet
-        shadow = QGraphicsDropShadowEffect(self)
-        shadow.setBlurRadius(60)
-        shadow.setOffset(0, 0)
-        shadow.setColor(QColor(0, 0, 0, 32))
-        self.stacked_widget.setGraphicsEffect(shadow)
+        shadow_effect = QGraphicsDropShadowEffect(self)
+        shadow_effect.setBlurRadius(60)
+        shadow_effect.setOffset(0, 0)
+        shadow_effect.setColor(QColor(0, 0, 0, 32))
+        self.stacked_widget.setGraphicsEffect(shadow_effect)
         self.stacked_widget.setStyleSheet("""
                                             .QStackedWidget {
                                                 border-width: 1px;
@@ -553,7 +592,7 @@ class AutoBackup_UI(QWidget):
 
         # exit button
         self.exit_button = QPushButton(' Exit')
-        self.exit_button.setIcon(self.icon_exit)
+        self.exit_button.setIcon(icon_exit)
         self.exit_button.clicked.connect(self.close)
 
         # exit layout
@@ -584,9 +623,8 @@ class AutoBackup_UI(QWidget):
                                 border-width: 1px;
                                 border-style: solid;
                                 border-radius: 6px;
-                                border-color: rgb(255, 149, 0);
-                                background-color: rgba(255, 149, 0, 32);
-                                color: rgba(255, 255, 255, 230);
+                                border-color: rgb(255, 159, 10);
+                                color: rgb(242, 242, 242);
                             }
                             """)
 
@@ -600,13 +638,49 @@ class AutoBackup_UI(QWidget):
         # self.minimum_height = self.main_layout.totalSizeHint().height()
 
 
-    # create QTime()
+    # set window
+    def set_window(self):
+        # size, position, title and pin
+        self.setMinimumWidth(self.minimum_width)
+        self.adjustSize()
+
+        screen = QApplication.primaryScreen().availableGeometry()
+        self.move(screen.width()/2 - self.width()/2, 0)
+
+        self.setWindowFlag(Qt.WindowStaysOnTopHint)
+        self.setFocusPolicy(Qt.StrongFocus)
+        self.setWindowTitle('Auto Backup')
+
+
+    # update window size
+    def resize_window(self):
+        self.resize(self.width(), self.main_layout.totalMinimumSize().height())
+
+
+    # start QTimer
+    def create_timer_obj(self):
+        # timer obj
+        self.timer_obj = QTimer()
+        self.timer_obj.timeout.connect(self.update_timer_display)
+        self.timer_obj.setInterval(1000)
+
+
+    # create QTime
     def create_time_obj(self):
         remaining = math.ceil(self.task.next_time - time.time())
-        if remaining > 0:
+        if remaining >= 0:
             hours, remainder = divmod(remaining, 3600)
             minutes, seconds = divmod(remainder, 60)
             self.remaining_time = QTime(int(hours), int(minutes), int(seconds))
+        else:
+            QTimer.singleShot(1000, self.time_display_and_start)
+
+
+    # timer and timer display and timer start
+    def time_display_and_start(self):
+        self.create_time_obj()
+        self.timer_display_label.setText(self.remaining_time.toString("h:mm:ss"))
+        self.timer_obj.start()
 
 
     # update timer display
@@ -615,11 +689,9 @@ class AutoBackup_UI(QWidget):
         if self.remaining_time != QTime(0, 0, 0, 0):
             self.remaining_time = self.remaining_time.addSecs(-1)
             self.timer_display_label.setText(self.remaining_time.toString("h:mm:ss"))
-            # print(self.remaining_time.toString("h:mm:ss"))
         else:
             self.create_time_obj()
             self.timer_display_label.setText(self.remaining_time.toString("h:mm:ss"))
-            # print(self.remaining_time)
 
 
         print('-'*100)
@@ -627,7 +699,6 @@ class AutoBackup_UI(QWidget):
         for thread in threading.enumerate():
             print(thread)
         print(threading.active_count(), self.task.sched_threading.is_alive())
-        # print(self.task.sched_threading)
 
 
     # record block time and cancel old event
@@ -654,38 +725,26 @@ class AutoBackup_UI(QWidget):
             print(2)
 
 
-    # timer and timer display and timer start
-    def time_display_and_start(self):
-        self.create_time_obj()
-        self.timer_display_label.setText(self.remaining_time.toString("h:mm:ss"))
-        self.timer_obj.start()
-
-
     # enable or disable
     @Slot()
     def toggle_switch_changed(self, state):
         self.timer_display_label.setEnabled(state)
+        user = self.task.user_settings()
 
-        # write to settings json
-        if state:
-            timer_display = ''
-        else:
+        if not state:
             self.timer_obj.stop()
+            self.recorde_and_cancel()
             timer_display = self.timer_display_label.text()
+            user['display'] = timer_display
 
-        settings = self.task.user_settings()
-        settings['display'] = timer_display
-        settings['enabled'] = state
+        user['enabled'] = state
         with open(self.task.settings_json, 'w+') as st:
-            json.dump(settings, st, indent=4)
+            json.dump(user, st, indent=4)
 
-        # check sched and threading
         if state:
             self.check_threading_and_sched()
             self.time_display_and_start()
-        else:
-            # record block time and cancel old event
-            self.recorde_and_cancel()
+
 
     # hide or show, resize windows
     @Slot()
@@ -779,22 +838,22 @@ class AutoBackup_UI(QWidget):
     def save_user_values(self):
         state = self.toggle_switch.isChecked()
         if state:
-            timer_display = ''
+            timer_display = None
         else:
             timer_display = self.timer_display_label.text()
 
-        settings = {
-                    'display': timer_display,
-                    'enabled': state,
-                    'timer': self.timer_spinbox.value(),
-                    'maximum_files': self.maximum_files_spinbox.value(),
-                    'backup_dir_index': self.backup_dir_combobox.currentIndex(),
-                    'custom_dir': self.backup_dir_display_lineedit.text()
-                    }
+        user = {
+                'display': timer_display,
+                'enabled': state,
+                'timer': self.timer_spinbox.value(),
+                'maximum_files': self.maximum_files_spinbox.value(),
+                'backup_dir_index': self.backup_dir_combobox.currentIndex(),
+                'custom_dir': self.backup_dir_display_lineedit.text()
+                }
 
         # write to file
         with open(self.task.settings_json, 'w+') as st:
-            json.dump(settings, st, indent=4)
+            json.dump(user, st, indent=4)
 
         # record block time and cancel old event
         self.recorde_and_cancel()
@@ -810,23 +869,44 @@ class AutoBackup_UI(QWidget):
         QTimer.singleShot(0, self.resize_window)
 
 
-    # set window
-    def set_window(self):
-        # size, position, title and pin
-        self.setMinimumWidth(494)
-        self.adjustSize()
+    # delete backup files
+    @Slot()
+    def delete_files_and_dir(self):
+        index = self.task.user_settings()['backup_dir_index']
+        backup_dir = self.task.backup_dirs()[index]
+        files = '<span style="color: rgb(255, 159, 10)">files</span>'
+        folder = '<span style="color: rgb(255, 159, 10)">folder</span>'
 
-        screen = QApplication.primaryScreen().availableGeometry()
-        self.move(screen.width()/2 - self.width()/2, 0)
+        if index == 2:
+            question = f'delete backup {files}'
+        else:
+            question = f'delete backup {files} and {folder}'
 
-        self.setWindowFlag(Qt.WindowStaysOnTopHint)
-        self.setFocusPolicy(Qt.StrongFocus)
-        self.setWindowTitle('Auto Backup')
+        if backup_dir:
+            reply = QMessageBox.question(self, '',
+                    f'Are you sure you want to delete backup {question} ?'
+                    f'<p style="color: rgb(142, 142, 142)">{backup_dir}</p>',
+                    QMessageBox.Yes | QMessageBox.No)
 
+            if reply == QMessageBox.Yes and Path(backup_dir).is_dir():
+                # delete only backup files
+                if index == 2:
+                    pattern = re.compile(r'\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}\.nk$')
+                    files = [file for file in Path(backup_dir).glob('*.nk') if pattern.search(file.name)]
+                    for file in files:
+                        file.unlink()
 
-    # update window size
-    def resize_window(self):
-        self.resize(self.width(), self.main_layout.totalMinimumSize().height())
+                # delete backup files and folder
+                else:
+                    if backup_dir.endswith('Auto-Backup'):
+                        shutil.rmtree(backup_dir)
+                        print('remove')
+        else:
+            QMessageBox.information(self, 'test',
+                'Please create a <span style="color: rgb(255, 159, 10)">project</span> first.',
+                QMessageBox.Ok)
+
+            # print(index, backup_dir)
 
 
     # only settings values, exclude toogle switch
@@ -862,7 +942,20 @@ class AutoBackup_UI(QWidget):
         self.setFocus()
 
 
-    # stop timer display
+    # def focusInEvent(self, event):
+    #     super().focusInEvent(event)
+    #     # 当窗口获得焦点时，恢复窗口前景标志
+    #     self.setWindowFlags(self.windowFlags() | Qt.WindowStaysOnTopHint)
+    #     self.show()
+
+
+    # def focusOutEvent(self, event):
+    #     super().focusOutEvent(event)
+    #     self.setWindowFlags(self.windowFlags() & ~Qt.WindowStaysOnTopHint)
+    #     self.show()
+
+
+    # stop timer
     def closeEvent(self, event):
         self.timer_obj.stop()
         super().closeEvent(event)
@@ -872,7 +965,6 @@ class AutoBackup_UI(QWidget):
     def keyPressEvent(self, event):
         if event.key() == Qt.Key_Escape:
             self.close()
-
         super().keyPressEvent(event)
 
 
