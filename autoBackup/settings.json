@@ -1,5 +1,6 @@
 {
-    "enabled": true,
+    "display": "0:00:07",
+    "enabled": false,
     "timer": 20,
     "maximum_files": 20,
     "backup_dir_index": 0,
